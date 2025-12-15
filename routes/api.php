@@ -15,6 +15,9 @@ use App\Http\Controllers\HorarioController;
 use App\Http\Controllers\AulaController;
 use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\ReporteController;
+use App\Http\Controllers\ImportController;
+use App\Http\Controllers\AsistenciaController;
+use App\Http\Controllers\ReportesController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -187,5 +190,38 @@ Route::middleware('jwt')->group(function () {
         Route::get('/tablas-disponibles', [ReporteController::class, 'tablasDisponibles']);
         Route::post('/generar-dinamico', [ReporteController::class, 'generarReporteDinamico']);
         Route::post('/exportar-dinamico-excel', [ReporteController::class, 'exportarReporteDinamicoExcel']);
+    });
+
+    // Importación de usuarios
+    Route::prefix('import')->group(function () {
+        Route::post('/usuarios', [ImportController::class, 'importarUsuarios']);
+        Route::get('/plantilla-usuarios', [ImportController::class, 'descargarPlantilla']);
+    });
+
+    // Sistema de asistencias
+    Route::prefix('asistencias')->group(function () {
+        Route::post('/generar-qr', [AsistenciaController::class, 'generarQR']);
+        Route::post('/marcar', [AsistenciaController::class, 'marcarAsistencia']);
+        Route::get('/mis-asistencias', [AsistenciaController::class, 'misAsistencias']);
+        Route::get('/mis-qrs-hoy', [AsistenciaController::class, 'misQRsHoy']);
+        Route::get('/reporte', [AsistenciaController::class, 'reporte']);
+
+        // Ejecutar registro automático de faltas (manual)
+        Route::post('/registrar-faltas-automaticas', function () {
+            \Illuminate\Support\Facades\Artisan::call('asistencias:registrar-faltas');
+            $output = \Illuminate\Support\Facades\Artisan::output();
+            return response()->json([
+                'message' => 'Comando ejecutado exitosamente',
+                'output' => $output
+            ]);
+        });
+    });
+
+    // Reportes administrativos
+    Route::prefix('reportes')->group(function () {
+        Route::get('/horarios-semanales', [ReportesController::class, 'horariosSemanales']);
+        Route::get('/asistencias-docente', [ReportesController::class, 'asistenciasPorDocente']);
+        Route::get('/asistencias-grupo', [ReportesController::class, 'asistenciasPorGrupo']);
+        Route::get('/aulas-disponibles', [ReportesController::class, 'aulasDisponibles']);
     });
 });

@@ -29,16 +29,28 @@ class ReporteController extends Controller
                 $q->where('activo', true);
             })->count();
 
+            // Total usuarios
+            $totalUsuarios = DB::table('usuarios')->count();
+
             // Materias asignadas (asignaciones únicas)
             $materiasAsignadas = Asignacion::distinct('materia_id')->count('materia_id');
+
+            // Total materias
+            $totalMaterias = DB::table('materias')->count();
 
             // Aulas en uso (aulas con al menos una asignación)
             $aulasEnUso = DB::table('asignacion_horarios')
                 ->distinct('aula_id')
                 ->count('aula_id');
 
-            // Reservas pendientes
+            // Total aulas
+            $totalAulas = DB::table('aulas')->count();
+
+            // Reservas por estado
             $reservasPendientes = Reserva::where('estado', 'pendiente')->count();
+            $reservasAprobadas = Reserva::where('estado', 'aprobada')->count();
+            $reservasRechazadas = Reserva::where('estado', 'rechazada')->count();
+            $reservasCanceladas = Reserva::where('estado', 'cancelada')->count();
 
             // Asignaciones por día
             $asignacionesPorDia = DB::table('asignacion_horarios')
@@ -50,9 +62,15 @@ class ReporteController extends Controller
 
             return response()->json([
                 'docentes_activos' => $docentesActivos,
+                'total_usuarios' => $totalUsuarios,
                 'materias_asignadas' => $materiasAsignadas,
+                'total_materias' => $totalMaterias,
                 'aulas_en_uso' => $aulasEnUso,
+                'total_aulas' => $totalAulas,
                 'reservas_pendientes' => $reservasPendientes,
+                'reservas_aprobadas' => $reservasAprobadas,
+                'reservas_rechazadas' => $reservasRechazadas,
+                'reservas_canceladas' => $reservasCanceladas,
                 'asignaciones_por_dia' => $asignacionesPorDia
             ]);
         } catch (Exception $e) {
