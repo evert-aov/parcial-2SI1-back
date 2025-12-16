@@ -26,6 +26,24 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+// Health check endpoint para Railway
+Route::get('/health', function () {
+    try {
+        // Verificar conexión a base de datos
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $dbStatus = 'connected';
+    } catch (\Exception $e) {
+        $dbStatus = 'disconnected';
+    }
+
+    return response()->json([
+        'status' => 'ok',
+        'service' => 'AulaVirtual API',
+        'database' => $dbStatus,
+        'timestamp' => now()->toIso8601String()
+    ]);
+});
+
 // Rutas de autenticación (sin middleware)
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
