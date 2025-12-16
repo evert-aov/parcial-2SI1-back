@@ -17,7 +17,6 @@ use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\AsistenciaController;
-use App\Http\Controllers\ReportesController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -186,6 +185,10 @@ Route::middleware('jwt')->group(function () {
         Route::get('/aulas-disponibles', [ReporteController::class, 'aulasDisponibles']);
         Route::get('/aulas-disponibles-excel', [ReporteController::class, 'exportarAulasDisponiblesExcel']);
 
+        // Reportes de asistencias
+        Route::get('/asistencias-docente', [ReporteController::class, 'asistenciasPorDocente']);
+        Route::get('/asistencias-grupo', [ReporteController::class, 'asistenciasPorGrupo']);
+
         // Reportes dinámicos
         Route::get('/tablas-disponibles', [ReporteController::class, 'tablasDisponibles']);
         Route::post('/generar-dinamico', [ReporteController::class, 'generarReporteDinamico']);
@@ -215,13 +218,5 @@ Route::middleware('jwt')->group(function () {
                 'output' => $output
             ]);
         });
-    });
-
-    // Reportes administrativos
-    Route::prefix('reportes')->group(function () {
-        Route::get('/horarios-semanales', [ReportesController::class, 'horariosSemanales']);
-        Route::get('/asistencias-docente', [ReportesController::class, 'asistenciasPorDocente']);
-        Route::get('/asistencias-grupo', [ReportesController::class, 'asistenciasPorGrupo']);
-        Route::get('/aulas-disponibles', [ReportesController::class, 'aulasDisponibles']);
     });
 });

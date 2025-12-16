@@ -66,11 +66,23 @@ class UsuariosImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
             ]);
 
             // Crear registro en tabla docentes
+            // Parsear fecha de contratación con manejo de múltiples formatos
+            $fechaContrato = now()->format('Y-m-d'); // Valor por defecto
+            if (isset($row['fecha_contratacion']) && !empty($row['fecha_contratacion'])) {
+                try {
+                    // Intentar parsear la fecha con Carbon (soporta múltiples formatos)
+                    $fechaContrato = \Carbon\Carbon::parse($row['fecha_contratacion'])->format('Y-m-d');
+                } catch (\Exception $e) {
+                    // Si falla el parseo, usar fecha actual
+                    $fechaContrato = now()->format('Y-m-d');
+                }
+            }
+
             Docente::create([
                 'usuario_id' => $usuario->id,
                 'especialidad' => $row['especialidad'] ?? 'General',
                 'grado_academico' => $row['grado_academico'] ?? 'Licenciatura',
-                'fecha_contratacion' => $row['fecha_contratacion'] ?? now(),
+                'fecha_contrato' => $fechaContrato,
             ]);
 
             DB::commit();

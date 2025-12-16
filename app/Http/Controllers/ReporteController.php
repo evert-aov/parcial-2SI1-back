@@ -157,6 +157,12 @@ class ReporteController extends Controller
             $fecha = $request->fecha;
             $horarioId = $request->horario_id;
 
+            // Obtener información del horario seleccionado
+            $horario = Horario::find($horarioId);
+            if (!$horario) {
+                return response()->json(['message' => 'Horario no encontrado'], 404);
+            }
+
             // Obtener día de la semana (1=Lunes, 7=Domingo)
             $diaSemana = date('N', strtotime($fecha));
 
@@ -168,10 +174,21 @@ class ReporteController extends Controller
                 ->pluck('asignacion_horarios.aula_id');
 
             // También verificar reservas para esa fecha específica
+            // Verificar solapamiento de horarios
             $aulasReservadas = Reserva::where('fecha', $fecha)
-                ->where(function ($q) use ($horarioId) {
-                    $q->whereRaw("? BETWEEN hora_inicio AND hora_fin", [$horarioId])
-                        ->orWhereRaw("? BETWEEN hora_inicio AND hora_fin", [$horarioId]);
+                ->where(function ($q) use ($horario) {
+                    // Verificar si hay solapamiento de horarios
+                    $q->where(function ($query) use ($horario) {
+                        // Caso 1: La reserva empieza durante nuestro horario
+                        $query->whereBetween('hora_inicio', [$horario->hora_inicio, $horario->hora_fin])
+                            // Caso 2: La reserva termina durante nuestro horario
+                            ->orWhereBetween('hora_fin', [$horario->hora_inicio, $horario->hora_fin])
+                            // Caso 3: La reserva cubre completamente nuestro horario
+                            ->orWhere(function ($q2) use ($horario) {
+                                $q2->where('hora_inicio', '<=', $horario->hora_inicio)
+                                    ->where('hora_fin', '>=', $horario->hora_fin);
+                            });
+                    });
                 })
                 ->whereIn('estado', ['pendiente', 'aprobada'])
                 ->pluck('aula_id');
@@ -379,6 +396,136 @@ class ReporteController extends Controller
             );
         } catch (Exception $e) {
             return response()->json(['message' => 'Error al exportar: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Reporte de asistencias por docente
+     */
+    public function asistenciasPorDocente(Request $request): JsonResponse
+    {
+        try {
+            $docenteId = $request->input('docente_id');
+            $fechaInicio = $request->input('fecha_inicio', \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d'));
+            $fechaFin = $request->input('fecha_fin', \Carbon\Carbon::now()->endOfMonth()->format('Y-m-d'));
+
+            if (!$docenteId) {
+                return response()->json(['message' => 'Docente requerido'], 400);
+            }
+
+            $docente = Docente::with('usuario')->find($docenteId);
+            if (!$docente) {
+                return response()->json(['message' => 'Docente no encontrado'], 404);
+            }
+
+            // Obtener asistencias
+            $asistencias = \App\Models\Asistencia::with(['asignacionHorario'])
+                ->where('docente_id', $docenteId)
+                ->whereBetween('fecha', [$fechaInicio, $fechaFin])
+                ->orderBy('fecha', 'desc')
+                ->get();
+
+            // Calcular estadísticas
+            $total = $asistencias->count();
+            $presentes = $asistencias->where('estado', 'presente')->count();
+            $retrasados = $asistencias->where('estado', 'retrasado')->count();
+            $faltas = $asistencias->where('estado', 'falta')->count();
+
+            return response()->json([
+                'docente' => [
+                    'id' => $docente->id,
+                    'nombre' => $docente->usuario->nombre . ' ' . $docente->usuario->apellido,
+                    'correo' => $docente->usuario->correo
+                ],
+                'periodo' => [
+                    'inicio' => $fechaInicio,
+                    'fin' => $fechaFin
+                ],
+                'estadisticas' => [
+                    'total_clases' => $total,
+                    'presentes' => $presentes,
+                    'retrasados' => $retrasados,
+                    'faltas' => $faltas,
+                    'porcentaje_asistencia' => $total > 0 ? round(($presentes / $total) * 100, 2) : 0
+                ]
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al obtener asistencias',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reporte de asistencias por grupo
+     */
+    public function asistenciasPorGrupo(Request $request): JsonResponse
+    {
+        try {
+            $grupoId = $request->input('grupo_id');
+            $fechaInicio = $request->input('fecha_inicio', \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d'));
+            $fechaFin = $request->input('fecha_fin', \Carbon\Carbon::now()->endOfMonth()->format('Y-m-d'));
+
+            if (!$grupoId) {
+                return response()->json(['message' => 'Grupo requerido'], 400);
+            }
+
+            $grupo = \App\Models\Grupo::find($grupoId);
+            if (!$grupo) {
+                return response()->json(['message' => 'Grupo no encontrado'], 404);
+            }
+
+            // Obtener asignaciones del grupo
+            $asignaciones = DB::table('asignaciones')
+                ->where('grupo_id', $grupoId)
+                ->pluck('id');
+
+            // Obtener asignacion_horarios del grupo
+            $asignacionHorarios = DB::table('asignacion_horarios')
+                ->whereIn('asignacion_id', $asignaciones)
+                ->pluck('id');
+
+            // Obtener asistencias
+            $asistencias = \App\Models\Asistencia::with(['docente.usuario', 'asignacionHorario'])
+                ->whereIn('asignacion_horario_id', $asignacionHorarios)
+                ->whereBetween('fecha', [$fechaInicio, $fechaFin])
+                ->get();
+
+            // Agrupar por docente
+            $porDocente = $asistencias->groupBy('docente_id')->map(function ($grupo, $docenteId) {
+                $docente = $grupo->first()->docente;
+                $total = $grupo->count();
+                $presentes = $grupo->where('estado', 'presente')->count();
+
+                return [
+                    'docente_id' => $docenteId,
+                    'docente' => $docente->usuario->nombre . ' ' . $docente->usuario->apellido,
+                    'total' => $total,
+                    'presentes' => $presentes,
+                    'retrasados' => $grupo->where('estado', 'retrasado')->count(),
+                    'faltas' => $grupo->where('estado', 'falta')->count(),
+                    'porcentaje' => $total > 0 ? round(($presentes / $total) * 100, 2) : 0
+                ];
+            })->values();
+
+            return response()->json([
+                'grupo' => [
+                    'id' => $grupo->id,
+                    'nombre' => $grupo->nombre
+                ],
+                'periodo' => [
+                    'inicio' => $fechaInicio,
+                    'fin' => $fechaFin
+                ],
+                'por_docente' => $porDocente,
+                'total_registros' => $asistencias->count()
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Error al obtener asistencias del grupo',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

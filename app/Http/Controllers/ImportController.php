@@ -68,7 +68,7 @@ class ImportController extends Controller
                     'El password será automáticamente el número de CI',
                     'El rol asignado será automáticamente "Docente"',
                     'Sexo: M o F (Masculino o Femenino)',
-                    'Fecha de contratación formato: YYYY-MM-DD'
+                    'Fecha de contratación: YYYY-MM-DD (ej: 2024-01-15). Si no se proporciona o tiene formato inválido, se usará la fecha actual'
                 ]
             ]);
         } catch (Exception $e) {
