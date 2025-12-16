@@ -44,8 +44,12 @@ COPY docker/nginx.conf /etc/nginx/sites-available/default
 # Copiar configuración de supervisor
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Copiar script de inicio
+COPY docker/start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
 # Exponer puerto
 EXPOSE 8080
 
-# Comando de inicio
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Comando de inicio (ejecuta migraciones y luego inicia servicios)
+CMD ["/usr/local/bin/start.sh"]
